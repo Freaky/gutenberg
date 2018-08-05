@@ -321,25 +321,23 @@ fn is_temp_file(path: &Path) -> bool {
 /// Detect what changed from the given path so we have an idea what needs
 /// to be reloaded
 fn detect_change_kind(pwd: &str, path: &Path) -> (ChangeKind, String) {
-    let path_str = format!("{}", path.display())
-        .replace(pwd, "")
-        .replace("\\", "");
+    let path = path.strip_prefix(pwd).unwrap_or(path);
 
-    let change_kind = if path_str.starts_with("/templates") {
+    let change_kind = if path.starts_with("templates") {
         ChangeKind::Templates
-    } else if path_str.starts_with("/content") {
+    } else if path.starts_with("content") {
         ChangeKind::Content
-    } else if path_str.starts_with("/static") {
+    } else if path.starts_with("static") {
         ChangeKind::StaticFiles
-    } else if path_str.starts_with("/sass") {
+    } else if path.starts_with("sass") {
         ChangeKind::Sass
-    } else if path_str == "/config.toml" {
+    } else if path == Path::new("config.toml") {
         ChangeKind::Config
     } else {
-        unreachable!("Got a change in an unexpected path: {}", path_str)
+        unreachable!("Got a change in an unexpected path: {}", path.display())
     };
 
-    (change_kind, path_str)
+    (change_kind, path.to_string_lossy().to_string())
 }
 
 #[cfg(test)]
