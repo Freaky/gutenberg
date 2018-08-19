@@ -191,13 +191,8 @@ impl Page {
         ).chain_err(|| format!("Failed to render content of {}", self.file.path.display()))?;
         self.content = res.0;
         self.toc = res.1;
-        if self.raw_content.contains("<!-- more -->") {
-            self.summary = Some({
-                let summary = self.raw_content.splitn(2, "<!-- more -->").collect::<Vec<&str>>()[0];
-                render_content(summary, &context)
-                    .chain_err(|| format!("Failed to render content of {}", self.file.path.display()))?.0
-            })
-        }
+        self.summary = self.content.find("<p><a name=\"continue-reading\"></a></p>")
+                                   .map(|pos| self.content[0..pos].to_owned());
 
         Ok(())
     }
