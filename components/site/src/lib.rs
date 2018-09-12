@@ -44,6 +44,15 @@ use pagination::Paginator;
 
 use rayon::prelude::*;
 
+use std::time::Instant;
+macro_rules! measure {
+    ($task:expr, $code:block) => ({
+        let start = Instant::now();
+        let _ret = $code;
+        eprintln!("{}:{}: {:>10} - {}", file!(), line!(), format!("{:.2?}", start.elapsed()), $task);
+        _ret
+    });
+}
 
 /// The sitemap only needs links and potentially date so we trim down
 /// all pages to only that
@@ -189,6 +198,7 @@ impl Site {
         let sections = {
             let config = &self.config;
 
+            measure!("load sections", {
             section_entries
                 .into_par_iter()
                 .map(|entry| {
@@ -196,11 +206,13 @@ impl Site {
                     Section::from_file(path, config)
                 })
                 .collect::<Vec<_>>()
+            })
         };
 
         let pages = {
             let config = &self.config;
 
+            measure!("load pages", {
             page_entries
                 .into_par_iter()
                 .map(|entry| {
@@ -208,6 +220,7 @@ impl Site {
                     Page::from_file(path, config)
                 })
                 .collect::<Vec<_>>()
+            })
         };
 
         // Kinda duplicated code for add_section/add_page but necessary to do it that
@@ -239,15 +252,23 @@ impl Site {
         }
 
         let mut pages_insert_anchors = HashMap::new();
+
+        measure!("load insert page anchors", {
         for page in pages {
             let p = page?;
             pages_insert_anchors.insert(p.file.path.clone(), self.find_parent_section_insert_anchor(&p.file.parent.clone()));
             self.add_page(p, false)?;
         }
+        });
 
         self.register_early_global_fns();
+
         self.render_markdown()?;
-        self.populate_sections();
+
+        measure!("load populate_sections", {
+            self.populate_sections();
+        });
+
         self.populate_taxonomies()?;
         self.register_tera_global_fns();
 
@@ -267,20 +288,27 @@ impl Site {
         // TODO: avoid the duplication with function above for that part
         // This is needed in the first place because of silly borrow checker
         let mut pages_insert_anchors = HashMap::new();
+
+        measure!("render_markdown insert anchors again", {
         for (_, p) in &self.pages {
             pages_insert_anchors.insert(p.file.path.clone(), self.find_parent_section_insert_anchor(&p.file.parent.clone()));
         }
+        });
 
+        measure!("render_markdown render pages", {
         self.pages.par_iter_mut()
             .map(|(_, page)| {
                 let insert_anchor = pages_insert_anchors[&page.file.path];
                 page.render_markdown(permalinks, tera, config, base_path, insert_anchor)
             })
             .collect::<Result<()>>()?;
+        });
 
+        measure!("render_markdown render sections", {
         self.sections.par_iter_mut()
             .map(|(_, section)| section.render_markdown(permalinks, tera, config, base_path))
             .collect::<Result<()>>()?;
+        });
 
         Ok(())
     }
@@ -513,19 +541,30 @@ impl Site {
 
     /// Deletes the `public` directory and builds the site
     pub fn build(&self) -> Result<()> {
+        measure!("build clean", {
         self.clean()?;
+        });
         // Render aliases first to allow overwriting
         self.render_aliases()?;
+        measure!("build render_sections", {
         self.render_sections()?;
+        });
+        measure!("build render_orphan_pages", {
         self.render_orphan_pages()?;
+        });
+        measure!("build render_sitemap", {
         self.render_sitemap()?;
+        });
         if self.config.generate_rss {
+            measure!("build render_rss_feed", {
             self.render_rss_feed(None, None)?;
+            });
         }
         self.render_404()?;
         self.render_robots()?;
         self.render_taxonomies()?;
 
+        measure!("build compile_sass", {
         if let Some(ref theme) = self.config.theme {
             let theme_path = self.base_path.join("themes").join(theme);
             if theme_path.join("sass").exists() {
@@ -536,12 +575,19 @@ impl Site {
         if self.config.compile_sass {
             self.compile_sass(&self.base_path)?;
         }
+        });
 
+        measure!("build process_images", {
         self.process_images()?;
+        });
+        measure!("build copy_static_directories", {
         self.copy_static_directories()?;
+        });
 
         if self.config.build_search_index {
+        measure!("build build_search_index", {
             self.build_search_index()?;
+        });
         }
 
         Ok(())
