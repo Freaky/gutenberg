@@ -5,7 +5,8 @@ authors = ["Vincent Prouillet <prouillet.vincent@gmail.com>"]
 
 [dependencies]
 tera = { version = "0.11", features = ["preserve_order"] }
-syntect = "2"
+syntect = { git = "https://github.com/trishume/syntect", rev = "e6f3e13266ee2d7a5127e38948559deb92652458" }
+
 pulldown-cmark = "0"
 slug = "0.1"
 serde = "1"

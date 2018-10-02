@@ -4,11 +4,11 @@ use pulldown_cmark as cmark;
 use self::cmark::{Parser, Event, Tag, Options, OPTION_ENABLE_TABLES, OPTION_ENABLE_FOOTNOTES};
 use slug::slugify;
 use syntect::easy::HighlightLines;
-use syntect::html::{start_coloured_html_snippet, styles_to_coloured_html, IncludeBackground};
+use syntect::html::{start_highlighted_html_snippet, styled_line_to_highlighted_html, IncludeBackground};
 
 use errors::Result;
 use utils::site::resolve_internal_link;
-use highlighting::{get_highlighter, THEME_SET};
+use highlighting::{get_highlighter, SYNTAX_SET, THEME_SET};
 use link_checker::check_url;
 
 use table_of_contents::{TempHeader, Header, make_table_of_contents};
@@ -93,8 +93,8 @@ pub fn markdown_to_html(content: &str, context: &RenderContext) -> Result<Render
 
                     // if we are in the middle of a code block
                     if let Some(ref mut highlighter) = highlighter {
-                        let highlighted = &highlighter.highlight(&text);
-                        let html = styles_to_coloured_html(highlighted, background);
+                        let highlighted = &highlighter.highlight(&text, &SYNTAX_SET);
+                        let html = styled_line_to_highlighted_html(highlighted, background);
                         return Event::Html(Owned(html));
                     }
 
@@ -119,7 +119,7 @@ pub fn markdown_to_html(content: &str, context: &RenderContext) -> Result<Render
                             return Event::Html(Borrowed(""));
                         }
                     }
-                    let snippet = start_coloured_html_snippet(theme);
+                    let (snippet, _bg) = start_highlighted_html_snippet(theme);
                     Event::Html(Owned(snippet))
                 }
                 Event::End(Tag::CodeBlock(_)) => {
